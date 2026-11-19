@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3d6e">
+<title>Gesti&#xf3;n de Campo</title>
+<style>
+  :root { --azul:#0f3d6e; --azul2:#1d5fa8; --verde:#1a8f4c; --rojo:#c0392b; --ambar:#d68910; --gris:#6b7280; --fondo:#f3f5f9; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--fondo); color:#1f2937; font-size:16px; }
+  header { background:var(--azul); color:#fff; padding:14px 16px; position:sticky; top:0; z-index:5; }
+  header h1 { margin:0; font-size:18px; }
+  header small { opacity:.85; }
+  main { padding:14px; max-width:560px; margin:0 auto; }
+  .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  label { display:block; font-weight:600; font-size:14px; margin:12px 0 4px; }
+  input, select, textarea { width:100%; padding:12px; border:1px solid #cfd6e0; border-radius:8px; font-size:16px; background:#fff; }
+  textarea { min-height:80px; resize:vertical; }
+  button { width:100%; padding:14px; border:0; border-radius:10px; font-size:16px; font-weight:700; cursor:pointer; margin-top:14px; }
+  .primario { background:var(--azul2); color:#fff; }
+  .verde { background:var(--verde); color:#fff; }
+  .rojo { background:var(--rojo); color:#fff; }
+  .secundario { background:#e5e7eb; color:#111; }
+  button:disabled { opacity:.6; }
+  .fila { display:flex; gap:10px; } .fila > div { flex:1; }
+  .estado { display:flex; align-items:center; gap:8px; font-size:14px; }
+  .punto { width:12px; height:12px; border-radius:50%; background:var(--gris); flex:none; }
+  .punto.on { background:var(--verde); box-shadow:0 0 0 4px rgba(26,143,76,.2); }
+  .punto.warn { background:var(--ambar); }
+  .consent { background:#fff8e6; border:1px solid #f3d9a4; border-radius:8px; padding:12px; font-size:14px; line-height:1.45; }
+  .consent input { width:auto; margin-right:8px; transform:scale(1.3); }
+  .msg { padding:12px; border-radius:8px; margin-top:12px; font-size:14px; display:none; }
+  .msg.ok { background:#e6f6ec; color:#14532d; display:block; }
+  .msg.err { background:#fdecea; color:#7f1d1d; display:block; }
+  .mini { font-size:13px; color:var(--gris); }
+  .oculto { display:none !important; }
+  .cola { font-size:13px; color:var(--ambar); margin-top:8px; }
+/* ===== mapa ===== */
+  * { box-sizing:border-box; }
+  
+  #vistaMapa { position:fixed; inset:0; z-index:50; background:#fff; display:none; }
+  #vistaMapa.abierto { display:block; }
+  .app { display:flex; height:100%; }
+  aside { width:330px; flex:none; background:#fff; border-right:1px solid #e5e7eb; display:flex; flex-direction:column; }
+  .top { background:#0f3d6e; color:#fff; padding:14px; }
+  .top h1 { margin:0 0 8px; font-size:17px; }
+  .ctrl { display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:13px; }
+  .ctrl input, .ctrl select { padding:6px; border-radius:6px; border:0; font-size:13px; }
+  .ctrl label { display:flex; align-items:center; gap:4px; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:10px; border-bottom:1px solid #e5e7eb; }
+  .kpi { background:#f3f5f9; border-radius:8px; padding:8px; text-align:center; }
+  .kpi b { display:block; font-size:20px; } .kpi span { font-size:11px; color:#6b7280; }
+  .lista { overflow-y:auto; flex:1; }
+  .item { padding:10px 12px; border-bottom:1px solid #f0f0f0; cursor:pointer; display:flex; gap:10px; align-items:flex-start; }
+  .item:hover { background:#f7f9fc; }
+  .dot { width:12px; height:12px; border-radius:50%; margin-top:4px; flex:none; }
+  .nombre { font-weight:600; font-size:14px; } .det { font-size:12px; color:#6b7280; }
+  #mapa { flex:1; }
+  .pie { font-size:11px; color:#6b7280; padding:8px 12px; border-top:1px solid #e5e7eb; }
+  .error { background:#fdecea; color:#7f1d1d; padding:10px; margin:10px; border-radius:8px; font-size:13px; display:none; }
+  .leyenda { background:#fff; padding:8px 10px; border-radius:8px; font-size:12px; line-height:1.7; box-shadow:0 1px 4px rgba(0,0,0,.2); }
+  .leyenda i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+  @media (max-width: 760px) { .app { flex-direction:column; } aside { width:100%; height:45vh; } }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+<header>
+  <h1>Gesti&#xf3;n de Campo</h1>
+  <small id="subtitulo">Ingresa con tu usuario</small>
+</header>
+
+<main>
+  <!-- ============ LOGIN ============ -->
+  <section id="vLogin" class="card">
+    <label for="selGestor">Gestor</label>
+    <select id="selGestor"><option value="">Cargando&#x2026;</option></select>
+    <label for="pin">PIN</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="&#x2022;&#x2022;&#x2022;&#x2022;">
+
+    <div class="consent" style="margin-top:16px">
+      <label style="font-weight:400;margin:0;display:flex;align-items:flex-start">
+        <input type="checkbox" id="chkConsent">
+        <span>Autorizo el uso de mi ubicaci&#xf3;n GPS <b>solo durante mi jornada de gesti&#xf3;n de campo</b>, con la finalidad de
+        registrar d&#xf3;nde realizo cada gesti&#xf3;n y permitir la supervisi&#xf3;n de rutas. Puedo detener el env&#xed;o de ubicaci&#xf3;n en
+        cualquier momento con el bot&#xf3;n &#x201c;Terminar jornada&#x201d;.</span>
+      </label>
+    </div>
+
+    <button class="primario" id="btnLogin">Ingresar</button>
+    <div id="msgLogin" class="msg"></div>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <section id="vApp" class="oculto">
+    <div class="card">
+      <div class="estado"><span class="punto" id="ptoGps"></span><span id="txtGps">GPS inactivo</span></div>
+      <div class="mini" id="txtJornada" style="margin-top:6px">Jornada no iniciada</div>
+      <button class="verde" id="btnJornada">Iniciar jornada (compartir ubicaci&#xf3;n)</button>
+      <div class="cola oculto" id="txtCola"></div>
+    </div>
+
+    <form class="card" id="frm" autocomplete="off">
+      <div class="fila">
+        <div><label for="dni">DNI</label><input id="dni" inputmode="numeric" maxlength="11"></div>
+        <div><label for="credito">N&#xb0; cr&#xe9;dito</label><input id="credito" inputmode="numeric"></div>
+      </div>
+      <label for="cliente">Cliente (opcional)</label>
+      <input id="cliente">
+
+      <label for="tipoGestion">Tipo de gesti&#xf3;n</label>
+      <select id="tipoGestion" required>
+        <option value="">Selecciona&#x2026;</option>
+        <option>Visita domicilio</option>
+        <option>Visita negocio</option>
+        <option>Visita aval</option>
+        <option>Entrega de notificaci&#xf3;n / carta</option>
+        <option>Verificaci&#xf3;n de direcci&#xf3;n</option>
+      </select>
+
+      <label for="resultado">Resultado</label>
+      <select id="resultado" required>
+        <option value="">Selecciona&#x2026;</option>
+        <option>Promesa de pago</option>
+        <option>Pago realizado</option>
+        <option>Solicita refinanciamiento / reprogramaci&#xf3;n</option>
+        <option>Contacto sin compromiso</option>
+        <option>Titular ausente - mensaje con tercero</option>
+        <option>Domicilio / negocio cerrado</option>
+        <option>Direcci&#xf3;n no ubicada</option>
+        <option>Se mud&#xf3;</option>
+        <option>Se niega a pagar</option>
+        <option>Cliente fallecido</option>
+      </select>
+
+      <div class="fila oculto" id="bloquePdp">
+        <div><label for="fechaPdp">Fecha PDP</label><input id="fechaPdp" type="date"></div>
+        <div><label for="montoPdp">Monto S/</label><input id="montoPdp" type="number" step="0.01" min="0" inputmode="decimal"></div>
+      </div>
+
+      <label for="observacion">Observaci&#xf3;n</label>
+      <textarea id="observacion" maxlength="500"></textarea>
+
+      <button class="primario" type="submit" id="btnGuardar">Guardar gesti&#xf3;n</button>
+      <div id="msgFrm" class="msg"></div>
+    </form>
+
+    <button class="secundario" id="btnSalir">Cerrar sesi&#xf3;n</button>
+    <p class="mini" style="text-align:center">Mant&#xe9;n esta p&#xe1;gina abierta y la pantalla encendida durante la jornada para que tu ubicaci&#xf3;n se actualice.</p>
+  </section>
+</main>
+
+<div id="vistaMapa">
+<div class="app">
+  <aside>
+    <div class="top">
+      <h1>Gestores en campo</h1>
+      <div class="ctrl">
+        <input type="date" id="fecha">
+        <select id="filtro"><option value="">Todos los gestores</option></select>
+        <label><input type="checkbox" id="chkRuta" checked> Recorrido</label>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><b id="kActivos">&#x2013;</b><span>En l&#xed;nea (&lt;10 min)</span></div>
+      <div class="kpi"><b id="kGestiones">&#x2013;</b><span>Gestiones</span></div>
+      <div class="kpi"><b id="kPdp">&#x2013;</b><span>PDP</span></div>
+    </div>
+    <div class="error" id="err"></div>
+    <div class="lista" id="lista"></div>
+    <div class="pie" id="pie">Actualiza cada 60 s</div>
+  </aside>
+  <div id="mapa"></div>
+</div>
+
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ===================== CONFIGURACI\u00d3N ===================== */
+const API_URL = 'PEGA_AQUI_LA_URL_DE_TU_APPS_SCRIPT/exec';
+const INTERVALO_PING_MS = 2 * 60 * 1000;   // cada 2 minutos durante la jornada
+/* ========================================================= */
+
+const $ = id => document.getElementById(id);
+let sesion = null, watchId = null, timerPing = null, ultimaPos = null, wakeLock = null, enJornada = false;
+
+const store = {
+  get(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+function mostrar(el, texto, ok) { el.textContent = texto; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+
+/* ---------- MODO DEMO: sin Apps Script, guarda en este mismo celular ---------- */
+const DEMO = API_URL.indexOf('PEGA_AQUI') === 0;
+const DEMO_GESTORES = [{ gestor: 'Addemir (demo)', agencia: 'Agencia Lima', pin: '1234' }];
+function demoApi(p) {
+  const g = DEMO_GESTORES.find(x => x.gestor === p.gestor);
+  if (!g || g.pin !== String(p.pin)) throw new Error('Gestor o PIN incorrecto');
+  if (p.tipo === 'login') return { ok: true, gestor: g.gestor, agencia: g.agencia };
+  const ahora = p.registradoCliente || new Date().toISOString();
+  if (p.tipo === 'gestion') {
+    if (!p.dni && !p.credito) throw new Error('Ingresa DNI o n\u00famero de cr\u00e9dito');
+    const arr = store.get('demo_gestiones', []);
+    arr.push(Object.assign({}, p, { pin: undefined, agencia: g.agencia, registrado: ahora }));
+    store.set('demo_gestiones', arr.slice(-300));
+  } else if (p.tipo === 'ping') {
+    const arr = store.get('demo_ubic', []);
+    arr.push({ gestor: g.gestor, lat: p.lat, lng: p.lng, registrado: ahora });
+    store.set('demo_ubic', arr.slice(-500));
+  }
+  if (p.lat !== '' && p.lat != null) {
+    const u = store.get('demo_ultima', {});
+    u[g.gestor] = { gestor: g.gestor, agencia: g.agencia, lat: p.lat, lng: p.lng, precision: p.precision,
+                    bateria: p.bateria, enJornada: p.enJornada !== false, registrado: ahora };
+    store.set('demo_ultima', u);
+  }
+  return { ok: true };
+}
+// Si el navegador bloquea el GPS en la vista demo, se usa una posici\u00f3n simulada en Lima
+function posSimulada() {
+  const base = ultimaPos && ultimaPos.simulada ? ultimaPos.coords : { latitude: -12.0766, longitude: -77.0476 };
+  return { simulada: true, timestamp: Date.now(),
+           coords: { latitude: base.latitude + (Math.random() - .5) * .003, longitude: base.longitude + (Math.random() - .5) * .003, accuracy: 25 } };
+}
+
+async function api(payload) {
+  if (DEMO) return demoApi(payload);
+  // text/plain evita el "preflight" CORS; Apps Script lo recibe igual en e.postData.contents
+  const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'Error del servidor');
+  return j;
+}
+
+/* ---------- Cola offline: si no hay se\u00f1al, guarda y reintenta ---------- */
+function encolar(p) { const q = store.get('cola', []); q.push(p); store.set('cola', q); pintarCola(); }
+function pintarCola() {
+  const n = store.get('cola', []).length;
+  $('txtCola').textContent = n ? `${n} env\u00edo(s) pendiente(s) por falta de se\u00f1al. Se reintentar\u00e1 autom\u00e1ticamente.` : '';
+  $('txtCola').classList.toggle('oculto', !n);
+}
+async function vaciarCola() {
+  const q = store.get('cola', []);
+  if (!q.length) return;
+  const pendientes = [];
+  for (const p of q) {
+    try { await api(p); }
+    catch (e) { if (/PIN|Gestor/.test(e.message)) continue; pendientes.push(p); }
+  }
+  store.set('cola', pendientes); pintarCola();
+}
+async function enviar(p) {
+  try { await api(p); return true; }
+  catch (e) {
+    if (/PIN|Gestor|Ingresa|Falta/.test(e.message)) throw e; // errores de datos: no encolar
+    encolar(p); return false;
+  }
+}
+
+/* ---------- Login ---------- */
+async function cargarGestores() {
+  if (DEMO) {
+    $('selGestor').innerHTML = DEMO_GESTORES.map(g => `<option value="${g.gestor}">${g.gestor} \u2014 ${g.agencia}</option>`).join('');
+    $('pin').placeholder = 'Demo: 1234';
+    return;
+  }
+  try {
+    const r = await fetch(API_URL + '?action=gestores');
+    const j = await r.json();
+    $('selGestor').innerHTML = '<option value="">Selecciona tu nombre</option>' +
+      j.gestores.map(g => `<option value="${g.gestor}">${g.gestor} \u2014 ${g.agencia}</option>`).join('');
+  } catch (e) {
+    $('selGestor').innerHTML = '<option value="">Sin conexi\u00f3n. Recarga la p\u00e1gina.</option>';
+  }
+}
+
+$('btnLogin').onclick = async () => {
+  const gestor = $('selGestor').value, pin = $('pin').value.trim();
+  if (!gestor || !pin) return mostrar($('msgLogin'), 'Selecciona tu nombre e ingresa tu PIN.', false);
+  if (!$('chkConsent').checked) return mostrar($('msgLogin'), 'Debes aceptar el uso de ubicaci\u00f3n para continuar.', false);
+  $('btnLogin').disabled = true;
+  try {
+    const j = await api({ tipo: 'login', gestor, pin });
+    sesion = { gestor: j.gestor, agencia: j.agencia, pin, consentimiento: new Date().toISOString() };
+    store.set('sesion', sesion);
+    entrar();
+  } catch (e) { mostrar($('msgLogin'), e.message, false); }
+  $('btnLogin').disabled = false;
+};
+
+function entrar() {
+  $('vLogin').classList.add('oculto'); $('vApp').classList.remove('oculto');
+  $('subtitulo').textContent = `${sesion.gestor} \u00b7 ${sesion.agencia}`;
+  pintarCola(); vaciarCola();
+  if (store.get('jornada', false)) iniciarJornada();
+}
+
+$('btnSalir').onclick = () => {
+  if (enJornada) terminarJornada();
+  store.del('sesion'); sesion = null; location.reload();
+};
+
+/* ---------- GPS ---------- */
+function pedirPosicion() {
+  return new Promise(res => {
+    if (!navigator.geolocation) return res(ultimaPos);
+    navigator.geolocation.getCurrentPosition(
+      p => { ultimaPos = p; pintarGps(); res(p); },
+      () => { if (DEMO) { ultimaPos = posSimulada(); pintarGps(); } res(ultimaPos); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+    );
+  });
+}
+function pintarGps(error) {
+  const pto = $('ptoGps');
+  if (error) { pto.className = 'punto warn'; $('txtGps').textContent = error; return; }
+  if (!ultimaPos) { pto.className = 'punto'; $('txtGps').textContent = 'GPS inactivo'; return; }
+  if (ultimaPos.simulada) { pto.className = 'punto warn'; $('txtGps').textContent = 'Ubicaci\u00f3n SIMULADA (esta vista bloque\u00f3 el GPS)'; return; }
+  const acc = Math.round(ultimaPos.coords.accuracy);
+  pto.className = 'punto ' + (acc <= 100 ? 'on' : 'warn');
+  $('txtGps').textContent = `GPS activo \u00b7 precisi\u00f3n \u00b1${acc} m \u00b7 ${new Date(ultimaPos.timestamp).toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'})}`;
+}
+async function bateria() {
+  try { if (navigator.getBattery) { const b = await navigator.getBattery(); return Math.round(b.level * 100); } } catch (e) {}
+  return '';
+}
+
+/* ---------- Jornada (seguimiento en vivo) ---------- */
+async function ping() {
+  if (ultimaPos && ultimaPos.simulada) ultimaPos = posSimulada(); // en demo, simula que el gestor camina
+  if (!ultimaPos || !sesion) return;
+  const c = ultimaPos.coords;
+  await enviar({ tipo: 'ping', gestor: sesion.gestor, pin: sesion.pin, lat: c.latitude, lng: c.longitude,
+                 precision: Math.round(c.accuracy), bateria: await bateria(), enJornada,
+                 registradoCliente: new Date().toISOString() });
+  vaciarCola();
+}
+
+async function pedirWakeLock() {
+  try { if ('wakeLock' in navigator && enJornada) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && enJornada) { pedirWakeLock(); pedirPosicion().then(ping); }
+});
+
+function iniciarJornada() {
+  if (!navigator.geolocation) return pintarGps('Este celular no permite GPS en el navegador');
+  enJornada = true; store.set('jornada', true);
+  watchId = navigator.geolocation.watchPosition(
+    p => { const primera = !ultimaPos; ultimaPos = p; pintarGps(); if (primera) ping(); },
+    err => {
+      if (DEMO && !ultimaPos) { ultimaPos = posSimulada(); pintarGps(); ping(); return; }
+      pintarGps(err.code === 1 ? 'Permiso de ubicaci\u00f3n denegado. Act\u00edvalo en el navegador.' : 'Buscando se\u00f1al GPS\u2026');
+    },
+    { enableHighAccuracy: true, maximumAge: 30000, timeout: 30000 }
+  );
+  timerPing = setInterval(ping, DEMO ? 30000 : INTERVALO_PING_MS); // en demo cada 30 s para ver el recorrido r\u00e1pido
+  pedirWakeLock();
+  $('btnJornada').textContent = 'Terminar jornada (dejar de compartir)';
+  $('btnJornada').className = 'rojo';
+  $('txtJornada').textContent = 'Jornada en curso \u00b7 compartiendo ubicaci\u00f3n cada 2 min';
+}
+
+function terminarJornada() {
+  enJornada = false; store.set('jornada', false);
+  ping(); // \u00faltimo env\u00edo marcado como fuera de jornada
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  clearInterval(timerPing); watchId = null;
+  try { wakeLock && wakeLock.release(); } catch (e) {}
+  $('btnJornada').textContent = 'Iniciar jornada (compartir ubicaci\u00f3n)';
+  $('btnJornada').className = 'verde';
+  $('txtJornada').textContent = 'Jornada terminada \u00b7 no se comparte ubicaci\u00f3n';
+}
+
+$('btnJornada').onclick = () => enJornada ? terminarJornada() : iniciarJornada();
+
+/* ---------- Formulario ---------- */
+$('resultado').onchange = () => {
+  const pdp = $('resultado').value === 'Promesa de pago';
+  $('bloquePdp').classList.toggle('oculto', !pdp);
+  $('fechaPdp').required = pdp; $('montoPdp').required = pdp;
+};
+
+$('frm').onsubmit = async ev => {
+  ev.preventDefault();
+  const dni = $('dni').value.trim(), credito = $('credito').value.trim();
+  if (!dni && !credito) return mostrar($('msgFrm'), 'Ingresa DNI o n\u00famero de cr\u00e9dito.', false);
+  $('btnGuardar').disabled = true; $('btnGuardar').textContent = 'Obteniendo ubicaci\u00f3n\u2026';
+
+  const pos = await pedirPosicion();
+  const c = pos ? pos.coords : null;
+  const p = {
+    tipo: 'gestion', gestor: sesion.gestor, pin: sesion.pin,
+    dni, credito, cliente: $('cliente').value.trim(),
+    tipoGestion: $('tipoGestion').value, resultado: $('resultado').value,
+    fechaPdp: $('fechaPdp').value, montoPdp: $('montoPdp').value,
+    observacion: $('observacion').value.trim(),
+    lat: c ? c.latitude : '', lng: c ? c.longitude : '', precision: c ? Math.round(c.accuracy) : '',
+    bateria: await bateria(), enJornada, registradoCliente: new Date().toISOString()
+  };
+  $('btnGuardar').textContent = 'Guardando\u2026';
+  try {
+    const enviado = await enviar(p);
+    mostrar($('msgFrm'), enviado ? '\u2714 Gesti\u00f3n guardada' + (c ? '' : ' (sin GPS)')
+                                 : 'Sin se\u00f1al: la gesti\u00f3n qued\u00f3 guardada en el celular y se enviar\u00e1 sola.', true);
+    $('frm').reset(); $('bloquePdp').classList.add('oculto');
+  } catch (e) { mostrar($('msgFrm'), e.message, false); }
+  $('btnGuardar').disabled = false; $('btnGuardar').textContent = 'Guardar gesti\u00f3n';
+};
+
+/* ---------- Inicio ---------- */
+if (DEMO) {
+  const b = document.createElement('div');
+  b.style.cssText = 'background:#fff3cd;color:#664d03;padding:10px 14px;font-size:14px;text-align:center';
+  b.innerHTML = '<b>MODO DEMO</b>: los datos se guardan solo en este celular. <a href="#" onclick="abrirMapa();return false">Ver el mapa de supervisi\u00f3n \u2192</a>';
+  document.body.insertBefore(b, document.querySelector('main'));
+}
+window.addEventListener('online', vaciarCola);
+setInterval(vaciarCola, 60000);
+sesion = store.get('sesion', null);
+if (sesion) entrar(); else cargarGestores();
+</script>
+<script>
+let mapaIniciado=false;
+function abrirMapa(){document.getElementById("vistaMapa").classList.add("abierto");
+ if(mapaIniciado){window.__recargarMapa&&window.__recargarMapa();return;} mapaIniciado=true; (function(){
+
+/* ===================== CONFIGURACI\u00d3N ===================== */
+const API_URL = 'PEGA_AQUI_LA_URL_DE_TU_APPS_SCRIPT/exec';
+const REFRESCO_MS = 60 * 1000;
+/* ========================================================= */
+
+const KEY = new URLSearchParams(location.search).get('key') || '';
+const $ = id => document.getElementById(id);
+const hoyLima = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+$('fecha').value = hoyLima();
+
+const mapa = L.map('mapa').setView([-12.06, -77.04], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap'
+}).on('tileerror', () => {
+  // Si el fondo del mapa no carga (vista previa sin internet externo), se muestra una cuadr\u00edcula
+  if (!avisoFondo) { avisoFondo = true; $('mapa').style.background = '#eef2f7 repeating-linear-gradient(0deg,#dde3ec 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,#dde3ec 0 1px,transparent 1px 40px)';
+    $('pie').insertAdjacentHTML('beforebegin', '<div class="error" style="display:block;background:#fff3cd;color:#664d03">El fondo de calles no carga en esta vista previa. Publicado en GitHub Pages s\u00ed aparece.</div>'); }
+}).addTo(mapa);
+let avisoFondo = false;
+const capaGestores = L.layerGroup().addTo(mapa);
+const capaGestiones = L.layerGroup().addTo(mapa);
+const capaRutas = L.layerGroup().addTo(mapa);
+
+const leyenda = L.control({ position: 'bottomright' });
+leyenda.onAdd = () => {
+  const d = L.DomUtil.create('div', 'leyenda');
+  d.innerHTML = '<b>Gestor</b><br><i style="background:#1a8f4c"></i>En l\u00ednea (&lt;10 min)<br>' +
+    '<i style="background:#d68910"></i>10\u201360 min sin se\u00f1al<br><i style="background:#9ca3af"></i>&gt;60 min / fuera de jornada<br>' +
+    '<b>Gesti\u00f3n</b><br><i style="background:#2563eb"></i>PDP / pago<br><i style="background:#dc2626"></i>Otro resultado';
+  return d;
+};
+leyenda.addTo(mapa);
+
+const colorGestor = u => (!u.enJornada || u.minutos == null || u.minutos > 60) ? '#9ca3af' : (u.minutos <= 10 ? '#1a8f4c' : '#d68910');
+const colorGestion = g => /Promesa|Pago realizado/.test(g.resultado) ? '#2563eb' : '#dc2626';
+const paleta = ['#1d4ed8','#b91c1c','#047857','#7c3aed','#c2410c','#0e7490','#be185d','#4d7c0f','#a16207','#334155','#9333ea','#0f766e'];
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const valido = (lat, lng) => typeof lat === 'number' && typeof lng === 'number';
+
+let datos = null, primeraVez = true;
+
+/* ---------- MODO DEMO: lee lo que registraste en la app de este mismo celular ---------- */
+const DEMO = API_URL.indexOf('PEGA_AQUI') === 0;
+function datosDemo() {
+  const ls = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+  const fecha = $('fecha').value, esHoy = fecha === hoyLima(), ahora = Date.now();
+  const hhmm = t => new Date(t).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Lima' });
+  const fechaDe = t => new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+  const n = v => (v === '' || v == null) ? null : +v;
+
+  const ultimas = Object.values(ls('demo_ultima', {})).map(u => Object.assign({}, u, {
+    lat: n(u.lat), lng: n(u.lng), hora: hhmm(u.registrado), minutos: Math.round((ahora - new Date(u.registrado)) / 60000) }));
+  const gestiones = ls('demo_gestiones', []).filter(g => fechaDe(g.registrado) === fecha).map(g => ({
+    hora: hhmm(g.registrado), gestor: g.gestor, agencia: g.agencia, dni: g.dni, credito: g.credito, cliente: g.cliente,
+    tipo: g.tipoGestion, resultado: g.resultado, fechaPdp: g.fechaPdp, montoPdp: g.montoPdp, obs: g.observacion,
+    lat: n(g.lat), lng: n(g.lng) }));
+  const recorridos = {};
+  ls('demo_ubic', []).filter(p => fechaDe(p.registrado) === fecha)
+    .forEach(p => (recorridos[p.gestor] = recorridos[p.gestor] || []).push([n(p.lat), n(p.lng), hhmm(p.registrado)]));
+
+  if (esHoy) {
+    const sim = [
+      { gestor: 'Mar\u00eda Quispe (simulada)', agencia: 'Agencia SJL', base: [-11.985, -77.005], dLat: .0012, dLng: .0009, hace: 3, bat: 64 },
+      { gestor: 'Jorge Huam\u00e1n (simulado)', agencia: 'Agencia Comas', base: [-11.935, -77.055], dLat: -.0010, dLng: .0013, hace: 38, bat: 22 }
+    ];
+    const res = ['Promesa de pago', 'Domicilio / negocio cerrado', 'Pago realizado', 'Titular ausente - mensaje con tercero'];
+    sim.forEach((s, k) => {
+      const ruta = [];
+      for (let i = 0; i < 14; i++) {
+        const lat = s.base[0] + s.dLat * i + Math.sin(i) * .0006, lng = s.base[1] + s.dLng * i + Math.cos(i * 1.3) * .0006;
+        const t = ahora - (s.hace + (13 - i) * 12) * 60000;
+        ruta.push([lat, lng, hhmm(t)]);
+        if (i % 3 === 1) gestiones.push({ hora: hhmm(t), gestor: s.gestor, agencia: s.agencia,
+          dni: String(40000000 + k * 1000 + i), credito: String(1050000 + k * 100 + i), cliente: 'Cliente simulado ' + (i + 1),
+          tipo: 'Visita domicilio', resultado: res[(i + k) % res.length],
+          fechaPdp: res[(i + k) % res.length] === 'Promesa de pago' ? '25/11/2026' : '', montoPdp: 350, obs: '', lat, lng });
+      }
+      recorridos[s.gestor] = ruta;
+      const ult = ruta[ruta.length - 1];
+      ultimas.push({ gestor: s.gestor, agencia: s.agencia, lat: ult[0], lng: ult[1], precision: 18, bateria: s.bat,
+                     enJornada: true, hora: ult[2], minutos: s.hace });
+    });
+  }
+  return { fecha, esHoy, ultimas, gestiones, recorridos };
+}
+
+async function cargar() {
+  if (DEMO) {
+    datos = datosDemo(); llenarFiltro(); pintar();
+    $('pie').innerHTML = 'MODO DEMO \u00b7 actualizado ' + new Date().toLocaleTimeString('es-PE') + ' \u00b7 <a href="#" onclick="cerrarMapa();return false">\u2190 volver a la app</a>';
+    return;
+  }
+  if (!KEY) return mostrarError('Falta la clave en el link (?key=...).');
+  try {
+    const r = await fetch(`${API_URL}?action=mapa&key=${encodeURIComponent(KEY)}&fecha=${$('fecha').value}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    datos = j; $('err').style.display = 'none';
+    llenarFiltro(); pintar();
+    $('pie').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-PE') + ' \u00b7 refresca cada 60 s';
+  } catch (e) { mostrarError('No se pudo cargar: ' + e.message); }
+}
+function mostrarError(t) { $('err').textContent = t; $('err').style.display = 'block'; }
+
+function llenarFiltro() {
+  const actual = $('filtro').value;
+  const nombres = [...new Set([...datos.ultimas.map(u => u.gestor), ...datos.gestiones.map(g => g.gestor)])].sort();
+  $('filtro').innerHTML = '<option value="">Todos los gestores</option>' +
+    nombres.map(n => `<option ${n === actual ? 'selected' : ''}>${esc(n)}</option>`).join('');
+}
+
+function pintar() {
+  const f = $('filtro').value;
+  capaGestores.clearLayers(); capaGestiones.clearLayers(); capaRutas.clearLayers();
+  const limites = [];
+
+  const ultimas = datos.ultimas.filter(u => !f || u.gestor === f);
+  const gestiones = datos.gestiones.filter(g => !f || g.gestor === f);
+
+  // Recorridos del d\u00eda
+  if ($('chkRuta').checked) {
+    Object.keys(datos.recorridos).sort().forEach((n, i) => {
+      if (f && n !== f) return;
+      const pts = datos.recorridos[n].filter(p => valido(p[0], p[1])).map(p => [p[0], p[1]]);
+      if (pts.length > 1) L.polyline(pts, { color: paleta[i % paleta.length], weight: 3, opacity: .6 })
+        .bindTooltip(n).addTo(capaRutas);
+    });
+  }
+
+  // Gestiones del d\u00eda
+  gestiones.forEach(g => {
+    if (!valido(g.lat, g.lng)) return;
+    L.circleMarker([g.lat, g.lng], { radius: 6, color: '#fff', weight: 1.5, fillColor: colorGestion(g), fillOpacity: .9 })
+      .bindPopup(`<b>${esc(g.resultado)}</b><br>${esc(g.hora)} \u00b7 ${esc(g.gestor)}<br>DNI ${esc(g.dni)} \u00b7 Cr\u00e9d. ${esc(g.credito)}` +
+        (g.cliente ? `<br>${esc(g.cliente)}` : '') + `<br>${esc(g.tipo)}` +
+        (g.fechaPdp ? `<br>PDP: ${esc(g.fechaPdp)} \u00b7 S/ ${esc(g.montoPdp)}` : '') +
+        (g.obs ? `<br><i>${esc(g.obs)}</i>` : ''))
+      .addTo(capaGestiones);
+    limites.push([g.lat, g.lng]);
+  });
+
+  // \u00daltima posici\u00f3n de cada gestor (solo tiene sentido "en vivo" el d\u00eda de hoy)
+  if (datos.esHoy) {
+    ultimas.forEach(u => {
+      if (!valido(u.lat, u.lng)) return;
+      const ini = u.gestor.replace(/\(.*?\)/g, '').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
+      const icono = L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15],
+        html: `<div style="width:30px;height:30px;border-radius:50%;background:${colorGestor(u)};color:#fff;font:700 12px system-ui;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">${esc(ini)}</div>` });
+      L.marker([u.lat, u.lng], { icon: icono, zIndexOffset: 1000 })
+        .bindPopup(`<b>${esc(u.gestor)}</b><br>${esc(u.agencia)}<br>\u00daltima se\u00f1al: ${esc(u.hora)} (hace ${u.minutos} min)` +
+          `<br>Precisi\u00f3n \u00b1${esc(u.precision)} m` + (u.bateria !== '' ? ` \u00b7 Bater\u00eda ${esc(u.bateria)}%` : '') +
+          `<br>${u.enJornada ? 'En jornada' : 'Fuera de jornada'}`)
+        .addTo(capaGestores);
+      limites.push([u.lat, u.lng]);
+    });
+  }
+
+  // Lista lateral
+  const porGestor = {};
+  gestiones.forEach(g => { (porGestor[g.gestor] = porGestor[g.gestor] || { n: 0, pdp: 0 }); porGestor[g.gestor].n++;
+    if (/Promesa/.test(g.resultado)) porGestor[g.gestor].pdp++; });
+  const nombres = [...new Set([...ultimas.map(u => u.gestor), ...Object.keys(porGestor)])].sort();
+  $('lista').innerHTML = nombres.map(n => {
+    const u = ultimas.find(x => x.gestor === n);
+    const s = porGestor[n] || { n: 0, pdp: 0 };
+    const color = (u && datos.esHoy) ? colorGestor(u) : '#e5e7eb';
+    const senal = (u && datos.esHoy) ? (u.enJornada ? `se\u00f1al hace ${u.minutos} min` : 'fuera de jornada') : '';
+    return `<div class="item" data-g="${esc(n)}"><span class="dot" style="background:${color}"></span>
+      <div><div class="nombre">${esc(n)}</div><div class="det">${s.n} gestiones \u00b7 ${s.pdp} PDP${senal ? ' \u00b7 ' + senal : ''}</div></div></div>`;
+  }).join('') || '<div class="item det">Sin datos para esta fecha.</div>';
+  document.querySelectorAll('.item[data-g]').forEach(el => el.onclick = () => {
+    const u = ultimas.find(x => x.gestor === el.dataset.g);
+    if (u && valido(u.lat, u.lng) && datos.esHoy) mapa.setView([u.lat, u.lng], 16);
+    else { $('filtro').value = el.dataset.g; primeraVez = true; pintar(); }
+  });
+
+  // KPIs
+  $('kActivos').textContent = datos.esHoy ? datos.ultimas.filter(u => u.enJornada && u.minutos != null && u.minutos <= 10).length : '\u2013';
+  $('kGestiones').textContent = gestiones.length;
+  $('kPdp').textContent = gestiones.filter(g => /Promesa/.test(g.resultado)).length;
+
+  if (limites.length && primeraVez) { mapa.fitBounds(limites, { padding: [40, 40], maxZoom: 16 }); primeraVez = false; }
+}
+
+$('fecha').onchange = () => { primeraVez = true; cargar(); };
+$('filtro').onchange = () => { primeraVez = true; pintar(); };
+$('chkRuta').onchange = pintar;
+cargar();
+setInterval(() => { if ($('fecha').value === hoyLima()) cargar(); }, DEMO ? 15000 : REFRESCO_MS);
+
+window.__recargarMapa=()=>{mapa.invalidateSize();cargar();};
+})();}
+function cerrarMapa(){document.getElementById("vistaMapa").classList.remove("abierto");}
+</script>
+</body>
+</html>
